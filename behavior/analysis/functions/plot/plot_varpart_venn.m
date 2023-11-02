@@ -12,9 +12,9 @@ comb_idx = [5 6 7 2 4 3 1];
 
 for i = 1:num_vp
 
-    vpred = v{i}.pred;
-    if size(vpred,1)==2
-        vp = squeeze(mean(vpred,1));
+    vp = v{i}.varpart.pred;
+    if size(vp,1)==2
+        vp = squeeze(mean(vp,1));
     end
 
     %reorder, scale, and set negatives to 0
@@ -22,7 +22,7 @@ for i = 1:num_vp
     vp(vp<0) = 0;
 
     figure
-    venn(vp,'ErrMinMode','ChowRodgers')
+    venn(vp,'ErrMinMode','none')
     axis off
 
   
