@@ -25,10 +25,10 @@ elseif contains(vpfile,'openai')
     c4 = [102,122,129]/255; %ac: shared target-comp
     c7 = [125,179,179]/255; %c: comp
     c1 = [117,144,141]/255; %abc
-    legendstring = {'','','','Target','Class','GPT'};
+    legendstring = {'','','','','Target','Class','GPT'};
 
 elseif contains(vpfile,'grouped')
-    c1 = [97,161,139]/255; %abc
+    c1 = [0.89 0.91 0.9]; %abc
     c2 = [0.77 0.58 0.7]; %ab: sem-soc
     c3 = [0.7 0.77 0.6]; %bc: soc-perc
     c4 = [0.77 0.77 0.52]; %ac: sem-perc

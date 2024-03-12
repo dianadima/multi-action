@@ -31,10 +31,6 @@ for i = 1:2
     if i==2, set(gca,'ylabel',[]);end
 end
 
-%% plot cross-modal prediction results
-
-plot_crossmodal(fullfile(savepath,'crossmodal_prediction.mat'))
-
 %% plot variance partitioning results for each analysis: video, sentence & cross-modal
 filesuff = {'','_grouped','_openai','_openai_parts'};
 

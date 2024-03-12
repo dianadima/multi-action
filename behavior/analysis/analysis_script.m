@@ -20,7 +20,7 @@ savepath = fullfile(basepath, 'results', dtype);                             %wh
 
 %result filenames for RSA analysis
 rsafile = fullfile(savepath,'rsa.mat');                                      %RSA results
-vptfile = fullfile(savepath,'rsa_varpart.mat');                             %variance partitioning results
+vptfile = fullfile(savepath,'rsa_varpart.mat');                          %variance partitioning results
 modfile = fullfile(fileparts(datapath),'models.mat');                        %RSA models
 
 %% run data processing
@@ -34,10 +34,6 @@ sim_qualitycheck(datapath,savepath);
 %% run standard rsa
 
 sim_runrsa(savepath,modfile,rsafile)
-
-%% run cross-modal prediction
-
-sim_crossmodal(modfile,fileparts(savepath))
 
 %% run unimodal variance partitioning
 
@@ -69,7 +65,7 @@ models = {{'Action target','Action class', 'Everyday activity','Action verb'};{'
 sim_varpart(fileparts(savepath),fileparts(datapath),fullfile(fileparts(savepath),'crossmodal_varpart_grouped.mat'),models,{'Semantic';'Social';'Perceptual'})
 
 % cross-modal variance partitioning with semantic features
-models = {'Action target';'Action class';'Activity'};
+models = {'Action target';'Action class';'Everyday activity'};
 sim_varpart(fileparts(savepath),fileparts(datapath),fullfile(fileparts(savepath),'crossmodal_varpart.mat'),models)
 
 % cross-modal variance partitioning with OpenAI

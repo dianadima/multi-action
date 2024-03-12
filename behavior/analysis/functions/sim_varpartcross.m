@@ -1,5 +1,6 @@
 function [varpart] = sim_varpartcross(rdmv,rdms,model1,model2,model3)
 % cross-validated variance partitioning analysis across modalities
+% runs cross-validation across action stimuli (leave-one-out)
 % uses Spearman's rho-A squared as prediction metric
 % 
 % inputs: RDMs: rdmv, rdms (vectorized, Nsub x Npairs)
@@ -13,10 +14,13 @@ function [varpart] = sim_varpartcross(rdmv,rdms,model1,model2,model3)
 %
 % DC Dima 2022 (diana.c.dima@gmail.com)
 
-sz = 20; %subsample 20 subjects from each modality
-nit = 100; %number of iterations
+%must subsample stimuli, not participants
+nvid = 95; %num actions
+ncomb = 7; %num regressions to run
+nit = 100; %num iterations of LOO-CV with different data splits
 
-truecorrsq = nan(nit,1);
+%split-half reliability as noise ceiling
+sz = 20; % use N = 20 for all subsamples here
 
 %combine predictors for hierarchical regression
 comb{1} = [model1 model2 model3];
@@ -27,54 +31,76 @@ comb{5} = model1;
 comb{6} = model2; 
 comb{7} = model3;
 
-ncomb = length(comb);
-vif = nan(nit,size(comb{1},2));
-big_rsq_mat = nan(2,ncomb,nit); %two prediction directions
-var_mat = nan(2,ncomb,nit);
 comb_labels = {'abc','ab','bc','ac','a','b','c'};
+vif = nan(nit,nvid, size(comb{1},2));
+big_rsq_mat = nan(2,ncomb,nvid,nit);
 
-%loop
 for it = 1:nit
 
-    idx1 = randperm(size(rdmv,1),sz);
-    idx2 = randperm(size(rdms,1),sz);
+    %we are testing cross-modally: draw N=20 from each dataset
+    idx = randperm(size(rdmv,1),sz);
+    rdmv1 = nanmean(rdmv(idx,:),1)'; %#ok<*NANMEAN>
 
-    rdm1 = nanmean(rdmv(idx1,:),1)'; %#ok<*NANMEAN> 
-    rdm2 = nanmean(rdms(idx2,:),1)';
-    
-    if any(isnan(rdm1)) || any(isnan(rdm2))
-        warning('Missing values')
-    end
+    idx = randperm(size(rdms,1),sz);
+    rdms1 = nanmean(rdms(idx,:),1)';
 
-    truecorrsq(it) = (spearman_rho_a(rdm1,rdm2))^2;
+    truecorrsq(it) = (spearman_rho_a(rdmv1,rdms1))^2;
 
-    for icomb = 1:ncomb
+    %make the RDMs square for ease of indexing
+    rdmv1 = squareform(rdmv1);
+    rdms1 = squareform(rdms1);
 
-        pred = comb{icomb};
+    %loop across actions
+    for v = 1:nvid
 
-        %train on videos, test on sentences
-        lm = fitlm(pred,rdm1);
-        rpred = predict(lm,pred); %get predicted responses
-        big_rsq_mat(1,icomb,it) = (spearman_rho_a(rpred,rdm2))^2; %save rho-a squared
+        %leave out all pairs corresponding to one video & vectorize
+        rdmvtrain = rdmv1; rdmvtrain(v,:) = []; rdmvtrain(:,v) = []; rdmvtrain = squareform(rdmvtrain);
+        rdmvtest = rdmv1(v,:); rdmvtest(v) = []; %remove diagonal
 
-        %train on sentences, test on videos
-        lm = fitlm(pred,rdm2);
-        rpred = predict(lm,pred); %get predicted responses
-        big_rsq_mat(2,icomb,it) = (spearman_rho_a(rpred,rdm1))^2; %save rho-a squared
+        rdmstrain = rdms1; rdmstrain(v,:) = []; rdmstrain(:,v) = []; rdmstrain = squareform(rdmstrain);
+        rdmstest = rdms1(v,:); rdmstest(v) = []; %remove diagonal
 
-        %variance inflation factor
-        if icomb==1
-            R0 = corrcoef(pred);
-            vif(it,:) = diag(inv(R0))';
+        %hierarchical regression loop
+        for icomb = 1:ncomb
+
+            pred = comb{icomb};
+            predtrain = []; predtest = [];
+
+            for n = 1:size(pred,2) %for each model - split into training & test set
+
+                tmp = pred(:,n);
+                tmp = squareform(tmp);
+                tmptrain = tmp; tmptrain(v,:) = []; tmptrain(:,v) = [];
+                tmptest = tmp(v,:); tmptest(v) = [];
+                predtrain(:,n) = squareform(tmptrain); %#ok<*AGROW> 
+                predtest(:,n) = tmptest;
+            end
+
+            %train on videos, test on sentences
+            lm = fitlm(predtrain,rdmvtrain(:));
+            rpred = predict(lm,predtest); %get predicted responses
+            big_rsq_mat(1,icomb,v,it) = (spearman_rho_a(rpred,rdmstest(:)))^2; %compare across modalities
+
+            %train on sentences, test on videos
+            lm = fitlm(predtrain,rdmstrain);
+            rpred = predict(lm,predtest); %get predicted responses
+            big_rsq_mat(2,icomb,v,it) = (spearman_rho_a(rpred,rdmvtest(:)))^2; %compare across modalities
+
+            %variance inflation factor
+            if icomb==1
+                R0 = corrcoef(predtrain);
+                vif(it,v,:) = diag(inv(R0))';
+            end
+
+
         end
-
-
     end
+
 end
 
 for dir = 1:2
 
-    rsq_mat = squeeze(big_rsq_mat(dir,:,:));
+    rsq_mat = mean(squeeze(big_rsq_mat(dir,:,:,:)),2);
 
     %unique variance
     a = rsq_mat(1,:) - rsq_mat(3,:);
@@ -95,7 +121,7 @@ end
 
 
 varpart.pred = var_mat;
-varpart.total = squeeze(big_rsq_mat(:,1,:));
+varpart.total = mean(squeeze(big_rsq_mat(:,1,:,:)),2);
 varpart.comb_labels = comb_labels;
 varpart.true = truecorrsq;
 varpart.vif = vif;

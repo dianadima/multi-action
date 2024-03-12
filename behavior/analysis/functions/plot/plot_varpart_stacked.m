@@ -33,7 +33,7 @@ for i = 1:num_vp
 
 end
 
-%figure
+figure
 hold on
 for i = 1:num_vp
     rectangle('Position',[i-0.25 nc1(i) 0.5 nc2(i)-nc1(i)],'FaceColor',[0.85 0.85 0.85], 'EdgeColor','none')

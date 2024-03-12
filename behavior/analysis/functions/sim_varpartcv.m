@@ -1,6 +1,6 @@
 function [varpart] = sim_varpartcv(rdm,model1,model2,model3)
 % cross-validated variance partitioning analysis
-% runs split-half cross-validation
+% runs cross-validation across action stimuli (leave-one-out)
 % uses Spearman's rho-A squared as prediction metric
 % 
 % inputs: rdm (vectorized, Nsub x Npairs)
@@ -14,63 +14,82 @@ function [varpart] = sim_varpartcv(rdm,model1,model2,model3)
 %
 % DC Dima 2022 (diana.c.dima@gmail.com)
 
+
+%must subsample stimuli, not participants
+nvid = 95; %num actions
+ncomb = 7; %num regressions to run
+nit = 100; %100 iterations of LOO-CV with different data splits
+
+%sample about half
 nsub = size(rdm,1);
 sz = floor(nsub/2);
-nit = 100;
-
-truecorrsq = nan(nit,1);
 
 %combine predictors for hierarchical regression
 comb{1} = [model1 model2 model3];
 comb{2} = [model1 model2];
 comb{3} = [model2 model3];
 comb{4} = [model1 model3];
-comb{5} = model1; 
-comb{6} = model2; 
+comb{5} = model1;
+comb{6} = model2;
 comb{7} = model3;
 
-ncomb = length(comb);
-vif = nan(nit,size(comb{1},2));
-
-%loop
-rsq_mat = nan(ncomb,nit);
 comb_labels = {'abc','ab','bc','ac','a','b','c'};
+vif = nan(nit,nvid, size(comb{1},2));
+rsq_mat = nan(ncomb,nvid,nit);
 
 for it = 1:nit
 
-
     idx = randperm(nsub,sz);
-    rdm1 = nanmean(rdm(idx,:),1)'; %#ok<*NANMEAN> 
-    
-    rdm2 = rdm;
-    rdm2(idx,:) = [];
+    rdm1 = nanmean(rdm(idx,:),1)'; %#ok<*NANMEAN>
+    rdm2 = rdm; rdm2(idx,:) = [];
     rdm2 = nanmean(rdm2,1)';
-    
-    if any(isnan(rdm1)) || any(isnan(rdm2))
-        warning('Missing values')
-    end
-
 
     truecorrsq(it) = (spearman_rho_a(rdm1,rdm2))^2;
 
-    for icomb = 1:ncomb
+    rdm1 = squareform(rdm1);
+    rdm2 = squareform(rdm2);
 
-        pred = comb{icomb};
+    %loop
+    for v = 1:nvid
 
-        lm = fitlm(pred,rdm1);
-        rpred = predict(lm,pred); %get predicted responses
 
-        rsq_mat(icomb,it) = (spearman_rho_a(rpred,rdm2))^2; %save rho-a squared
+        rdmtrain = rdm1; rdmtrain(v,:) = []; rdmtrain(:,v) = []; rdmtrain = squareform(rdmtrain);
+        rdmtest = rdm2(v,:); rdmtest(v) = []; %remove diagonal
 
-        %variance inflation factor
-        if icomb==1
-            R0 = corrcoef(pred);
-            vif(it,:) = diag(inv(R0))';
+
+        for icomb = 1:ncomb
+
+            pred = comb{icomb};
+            predtrain = []; predtest = [];
+
+            for n = 1:size(pred,2) %for each model - select
+
+                tmp = pred(:,n);
+                tmp = squareform(tmp);
+                tmptrain = tmp; tmptrain(v,:) = []; tmptrain(:,v) = [];
+                tmptest = tmp(v,:); tmptest(v) = [];
+                predtrain(:,n) = squareform(tmptrain); %#ok<*AGROW> 
+                predtest(:,n) = tmptest;
+            end
+
+            %train and test
+            lm = fitlm(predtrain,rdmtrain(:));
+            rpred = predict(lm,predtest); %get predicted responses
+            rsq_mat(icomb,v,it) = (spearman_rho_a(rpred,rdmtest(:)))^2; %save rho-a squared
+
+            %variance inflation factor
+            if icomb==1
+                R0 = corrcoef(predtrain);
+                vif(it,v,:) = diag(inv(R0))';
+            end
+
         end
-
-
     end
+
 end
+
+%average across videos
+rsq_mat = mean(rsq_mat,2);
 
 %unique variance
 a = rsq_mat(1,:) - rsq_mat(3,:);
@@ -106,9 +125,11 @@ varpart.stats.wilc_pval = p;
 varpart.stats.wilc_stat = stats;
 varpart.stats.rand_pval = pcorr;
 
-
-
-
-
 end
+
+
+
+
+
+
 
