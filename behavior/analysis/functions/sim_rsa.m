@@ -18,7 +18,7 @@ for isub = 1:nsub
     msub = models(idx,:);
     
     %Spearman
-    cmatSa = corr([rsub(:) msub]);
+    cmatSa = spearman_rho_a([rsub(:) msub]);
     rsacorrSa(isub,:) = cmatSa(1,2:end);
 
     %regression
